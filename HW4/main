@@ -1,0 +1,551 @@
+#include <iostream>
+#include <math.h>
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
+#include <stb_image.h>
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+#include "Object.h"
+#include <cstdlib>.
+#include <ctime>
+
+using namespace std;
+
+void framebuffer_size_callback(GLFWwindow* window, int width, int height);
+void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods);
+unsigned int createShader(const char* filename, const char* type);
+unsigned int createProgram(unsigned int vertexShader, unsigned int geometryShader, unsigned int fragmentShader);
+unsigned int ModelVAO(Object* model);
+void LoadTexture(unsigned int& texture, const char* tFileName);
+glm::mat4 getPerspective();
+glm::mat4 getView();
+
+Object* soccerModel = new Object("obj/tennis_ball.obj");
+Object* catModel = new Object("obj/cat.obj");
+
+int windowWidth = 800, windowHeight = 600;
+
+float angle = 0;
+float lighting = 1;
+float squeezeFactor = 0;
+bool squeezing = false;
+bool lightChanging = false;
+
+float e = 0.8;
+float height = 2;
+float next_height = e * e * height;
+float cur_height = height;
+bool is_down = true;
+float alpha = 0;
+bool appear = true;
+float soccerDegree = 0; 
+float catDegree = 0;
+int cnt = 0; 
+
+int touch = 795;
+int contracted = 810;
+int changefov = 910;
+int bloom = 1090;
+float start_time = -1.0;
+int wave = 10;
+float magnification = 1;
+float step = 0.1;
+bool large = true;
+
+void DrawModel(glm::mat4 M, glm::mat4 V, glm::mat4 P, glm::mat4 normalM , 
+	vector<unsigned int> programs, Object*  objModel , unsigned int VAO, unsigned int texture , const char* objname) {
+
+	if (strcmp("soccer", objname) == 0) {
+		unsigned int mLoc, vLoc, pLoc, normalMLoc;
+		glUseProgram(programs[0]);
+		mLoc = glGetUniformLocation(programs[0], "M");
+		vLoc = glGetUniformLocation(programs[0], "V");
+		pLoc = glGetUniformLocation(programs[0], "P");
+		normalMLoc = glGetUniformLocation(programs[0], "normalM");
+		glUniformMatrix4fv(mLoc, 1, GL_FALSE, glm::value_ptr(M));
+		glUniformMatrix4fv(vLoc, 1, GL_FALSE, glm::value_ptr(V));
+		glUniformMatrix4fv(pLoc, 1, GL_FALSE, glm::value_ptr(P));
+		glUniformMatrix4fv(normalMLoc, 1, GL_FALSE, glm::value_ptr(normalM));
+		unsigned int heightLoc;
+		heightLoc = glGetUniformLocation(programs[0], "h");
+		glUniform1f(heightLoc, cur_height);
+		if (cnt >= changefov) {
+			unsigned int mLoc, vLoc, pLoc, normalMLoc;
+			glUseProgram(programs[1]);
+			mLoc = glGetUniformLocation(programs[1], "M");
+			vLoc = glGetUniformLocation(programs[1], "V");
+			pLoc = glGetUniformLocation(programs[1], "P");
+			normalMLoc = glGetUniformLocation(programs[1], "normalM");
+			glUniformMatrix4fv(mLoc, 1, GL_FALSE, glm::value_ptr(M));
+			glUniformMatrix4fv(vLoc, 1, GL_FALSE, glm::value_ptr(V));
+			glUniformMatrix4fv(pLoc, 1, GL_FALSE, glm::value_ptr(P));
+			glUniformMatrix4fv(normalMLoc, 1, GL_FALSE, glm::value_ptr(normalM));
+		}
+	}
+	if (strcmp("cat", objname) == 0) {
+		if (cnt < bloom) {
+			unsigned int mLoc, vLoc, pLoc, normalMLoc;
+			glUseProgram(programs[0]);
+			mLoc = glGetUniformLocation(programs[0], "M");
+			vLoc = glGetUniformLocation(programs[0], "V");
+			pLoc = glGetUniformLocation(programs[0], "P");
+			normalMLoc = glGetUniformLocation(programs[0], "normalM");
+			glUniformMatrix4fv(mLoc, 1, GL_FALSE, glm::value_ptr(M));
+			glUniformMatrix4fv(vLoc, 1, GL_FALSE, glm::value_ptr(V));
+			glUniformMatrix4fv(pLoc, 1, GL_FALSE, glm::value_ptr(P));
+			glUniformMatrix4fv(normalMLoc, 1, GL_FALSE, glm::value_ptr(normalM));
+			float rand1 = 0.0 + static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / (2.0 - 0.0)));
+			float rand2 = 0.0 + static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / (2.0 - 0.0)));
+			float rand3 = 0.0 + static_cast <float> (rand()) / (static_cast <float> (RAND_MAX / (2.0 - 0.0)));
+			glm::vec3 color_change = glm::vec3(rand1, rand2, rand3);
+			unsigned int transLoc, color_changeLoc, is_changeLoc, timeLoc;
+			transLoc = glGetUniformLocation(programs[0], "transparency");
+			glUniform1f(transLoc, alpha);
+			color_changeLoc = glGetUniformLocation(programs[0], "color_change");
+			glUniform3fv(color_changeLoc, 1, glm::value_ptr(color_change));
+			is_changeLoc = glGetUniformLocation(programs[0], "is_change");
+			glUniform1i(is_changeLoc, int(cnt >= contracted));
+			if (cnt >= changefov) {
+				unsigned int TimeLoc , xsLoc , zsLoc;
+				TimeLoc = glGetUniformLocation(programs[0] , "time");
+				glUniform1f(TimeLoc, (float)glfwGetTime());
+				xsLoc = glGetUniformLocation(programs[0], "xs");
+				glUniform1f(xsLoc, 5 * wave);
+				zsLoc = glGetUniformLocation(programs[0], "zs");
+				glUniform1f(zsLoc, 5 * wave);
+			}
+		}
+		else {
+			unsigned int mLoc, vLoc, pLoc, normalMLoc , timeLoc;
+			glUseProgram(programs[1]);
+			mLoc = glGetUniformLocation(programs[1], "M");
+			vLoc = glGetUniformLocation(programs[1], "V");
+			pLoc = glGetUniformLocation(programs[1], "P");
+			normalMLoc = glGetUniformLocation(programs[1], "normalM");
+			glUniformMatrix4fv(mLoc, 1, GL_FALSE, glm::value_ptr(M));
+			glUniformMatrix4fv(vLoc, 1, GL_FALSE, glm::value_ptr(V));
+			glUniformMatrix4fv(pLoc, 1, GL_FALSE, glm::value_ptr(P));
+			glUniformMatrix4fv(normalMLoc, 1, GL_FALSE, glm::value_ptr(normalM));
+			timeLoc = glGetUniformLocation(programs[1], "cur_t");
+			glUniform1f(timeLoc, (float)glfwGetTime());
+			unsigned int start_tLoc, v0Loc, aLoc;
+			start_tLoc = glGetUniformLocation(programs[1], "start_t");
+			glUniform1f(start_tLoc, start_time);
+			v0Loc = glGetUniformLocation(programs[1], "v0");
+			glUniform1f(v0Loc, 1);
+			aLoc = glGetUniformLocation(programs[1], "a");
+			glUniform1f(aLoc, 0.3);
+		}
+	}
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, texture);
+	glBindVertexArray(VAO);
+	glDrawArrays(GL_TRIANGLES, 0, objModel->positions.size());
+	glBindTexture(GL_TEXTURE_2D, 0);
+	glBindVertexArray(0);
+
+	if (strcmp("soccer", objname) == 0) {
+		if (is_down && cur_height - 0.05 >= 0) {
+			cur_height -= 0.05;
+		}
+		else if (!is_down && cur_height + 0.05 <= next_height) {
+			cur_height += 0.05;
+		}
+		else if (is_down && cur_height - 0.05 <= 0) {
+			is_down = !is_down;
+		}
+		else {
+			is_down = !is_down;
+			height = next_height;
+			next_height = e * e * height;
+		}
+		if (!appear && cnt <= touch) {
+			soccerDegree += 1;
+		}
+	}
+	if (strcmp("cat", objname) == 0) {
+		alpha += 0.01;
+		if (alpha >= 1.5) {
+			appear = false;
+		}
+		if (!appear && cnt <= touch) {
+			catDegree += 1.05;
+		}
+	}
+	
+	glUseProgram(0);
+}
+vector<unsigned int> CreateShaders(const char* objname) {
+	if (strcmp("soccer", objname) == 0) {
+		unsigned int vertexShader, fragmentShader, geometryShader, shaderProgram;
+		vector<unsigned int> programs;
+		vertexShader = createShader("shaders/soccer.vert", "vert");
+		fragmentShader = createShader("shaders/soccer.frag", "frag");
+		shaderProgram = createProgram(vertexShader, 0, fragmentShader);
+		programs.push_back(shaderProgram);
+
+		vertexShader = createShader("shaders/normal.vert", "vert");
+		geometryShader = createShader("shaders/normal.geom", "geom");
+		fragmentShader = createShader("shaders/normal.frag", "frag");
+		shaderProgram = createProgram(vertexShader, geometryShader, fragmentShader);
+		programs.push_back(shaderProgram);
+		return programs;
+	}
+	if (strcmp("cat", objname) == 0) {
+		unsigned int vertexShader, fragmentShader, geometryShader, shaderProgram;
+		vector<unsigned int> programs;
+		vertexShader = createShader("shaders/cat.vert", "vert");
+		fragmentShader = createShader("shaders/cat.frag", "frag");
+		shaderProgram = createProgram(vertexShader, 0, fragmentShader);
+		programs.push_back(shaderProgram);
+
+		vertexShader = createShader("shaders/normal.vert", "vert");
+		geometryShader = createShader("shaders/test.geom", "geom");
+		fragmentShader = createShader("shaders/normal.frag", "frag");
+		shaderProgram = createProgram(vertexShader, geometryShader, fragmentShader);
+		programs.push_back(shaderProgram);
+		return programs;
+	}
+	if (strcmp("cat_", objname) == 0) {
+		unsigned int vertexShader, fragmentShader, geometryShader, shaderProgram;
+		vector<unsigned int> programs;
+		vertexShader = createShader("shaders/shake.vert", "vert");
+		fragmentShader = createShader("shaders/cat.frag", "frag");
+		shaderProgram = createProgram(vertexShader, 0, fragmentShader);
+		programs.push_back(shaderProgram);
+
+		vertexShader = createShader("shaders/normal.vert", "vert");
+		geometryShader = createShader("shaders/test.geom", "geom");
+		fragmentShader = createShader("shaders/normal.frag", "frag");
+		shaderProgram = createProgram(vertexShader, geometryShader, fragmentShader);
+		programs.push_back(shaderProgram);
+		return programs;
+	}
+}
+int main()
+{
+	srand(static_cast <unsigned> (time(0)));
+	// Initialization
+	glfwInit();
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+	glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+	glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+#ifdef __APPLE__
+	glfwWindowHint(GLFE_OPENGL_FORWARD_COMPACT, GL_TRUE);
+#endif
+
+	GLFWwindow* window = glfwCreateWindow(windowWidth, windowHeight, "HW4", NULL, NULL);
+	if (window == NULL)
+	{
+		std::cout << "Failed to create GLFW window" << std::endl;
+		glfwTerminate();
+		return -1;
+	}
+	glfwMakeContextCurrent(window);
+	glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
+	glfwSetKeyCallback(window, keyCallback);
+	glfwSwapInterval(1);
+
+	if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
+	{
+		std::cout << "Failed to initialize GLAD" << std::endl;
+		return -1;
+	}
+
+	// Shaders
+	vector<unsigned int>soccerPrograms = CreateShaders("soccer");
+	vector<unsigned int>catPrograms = CreateShaders("cat");
+	vector<unsigned int>catPrograms_shake = CreateShaders("cat_");
+
+	// Texture
+	unsigned int soccerTexture, catTexture;
+	LoadTexture(soccerTexture, "obj/soccer.jpg");
+	LoadTexture(catTexture, "obj/Cat_diffuse.jpg");
+
+	// VAO, VBO
+	unsigned int soccerVAO, catVAO;
+	soccerVAO = ModelVAO(soccerModel);
+	catVAO = ModelVAO(catModel);
+	
+
+	// Display loop
+	glfwGetFramebufferSize(window, &windowWidth, &windowHeight);
+	glViewport(0, 0, windowWidth, windowHeight);
+	glEnable(GL_DEPTH_TEST);
+	glDepthFunc(GL_LEQUAL);
+	glEnable(GL_BLEND);
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+
+	while (!glfwWindowShouldClose(window) && cnt <= 1500)
+	{
+		glClearColor(0.302 , 0.7294 , 0.0824 , 0.41);
+		if (cnt >= touch) {
+			glClearColor(0, 0, 0, 0);
+		}
+		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+		// TO DO:
+		glm::mat4 view = glm::mat4(1.0f);
+		glm::mat4 perspective = glm::mat4(1.0f);
+		if (cnt <= changefov) {
+			view = glm::lookAt(glm::vec3(0, 12, 12), glm::vec3(0, -1, 0), glm::vec3(0, 1, 0));
+		}
+		else {
+			view = glm::lookAt(glm::vec3(0, 5 , 12), glm::vec3(0, -1, 0), glm::vec3(0, 1, 0));
+		}
+		perspective = getPerspective();
+		
+		glm::mat4 model = glm::mat4(1.0f);
+
+		//soccer
+		if (appear) {
+			glm::mat4 model_soccer = model;
+			model_soccer = glm::scale(model_soccer, glm::vec3(1.2, 1.2, 1.2));
+			model_soccer = glm::translate(model_soccer, glm::vec3(2.5, 0.5, 2));
+			glm::mat4 normalM = glm::transpose(glm::inverse(model_soccer));
+			DrawModel(model_soccer, view, perspective, normalM, soccerPrograms, soccerModel, soccerVAO, soccerTexture, "soccer");
+		}
+		else{
+			glm::mat4 model_soccer = model;
+			model_soccer = glm::scale(model_soccer, glm::vec3(1.2, 1.2, 1.2));
+			model_soccer = glm::rotate(model_soccer, glm::radians(-soccerDegree), glm::vec3(0, 1, 0));
+			model_soccer = glm::translate(model_soccer, glm::vec3(2.5, 0.5, 2));
+			glm::mat4 normalM = glm::transpose(glm::inverse(model_soccer));
+			DrawModel(model_soccer, view, perspective, normalM, soccerPrograms, soccerModel, soccerVAO, soccerTexture, "soccer");
+		}
+
+		//cat
+		if (appear && abs(height - next_height) < 1e-5) {
+			//glm::mat4 model_cat = glm::rotate(model, angle, glm::vec3(0, 1, 0));
+			glm::mat4 model_cat = model;
+			model_cat = glm::scale(model_cat , glm::vec3(1.5, 1.5, 1.5));
+			model_cat = glm::translate(model_cat, glm::vec3(2.5, 0, 0));
+			glm::mat4 normalM = glm::transpose(glm::inverse(model_cat));
+			DrawModel(model_cat, view, perspective, normalM, catPrograms, catModel, catVAO, catTexture, "cat");
+		}
+		else if (!appear && cnt < changefov) {
+			glm::mat4 model_cat = model;
+			model_cat = glm::scale(model_cat, glm::vec3(1.5, 1.5 , 1.5));
+			model_cat = glm::rotate(model_cat, glm::radians(-catDegree), glm::vec3(0, 1, 0));
+			model_cat = glm::translate(model_cat, glm::vec3(2.5, 0, 0));
+			glm::mat4 normalM = glm::transpose(glm::inverse(model_cat));
+			DrawModel(model_cat, view, perspective, normalM, catPrograms, catModel, catVAO, catTexture, "cat");
+		}
+		else if (!appear && cnt >= changefov) {
+			glm::mat4 model_cat = model;
+			model_cat = glm::scale(model_cat, glm::vec3(1.5, 1.5, 1.5));
+			model_cat = glm::rotate(model_cat, glm::radians(-catDegree), glm::vec3(0, 1, 0));
+			model_cat = glm::translate(model_cat, glm::vec3(2.5, 0, 0));
+			glm::mat4 normalM = glm::transpose(glm::inverse(model_cat));
+			DrawModel(model_cat, view, perspective, normalM, catPrograms_shake, catModel, catVAO, catTexture, "cat");
+		}
+
+		if (cnt >= bloom) {
+			if (start_time == -1) {
+				start_time = (float)glfwGetTime();
+			}
+		}
+		cnt += 1;
+
+		glfwSwapBuffers(window);
+		glfwPollEvents();
+	}
+
+	glfwTerminate();
+	return 0;
+}
+
+// TO DO:
+// Add key callback
+void keyCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
+{
+	if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+		glfwSetWindowShouldClose(window, true);
+	if (key == GLFW_KEY_S && action == GLFW_PRESS)
+	{
+		squeezing = !squeezing;
+		cout << "KEY S PRESSED\n";
+	}
+	if (key == GLFW_KEY_L && action == GLFW_PRESS)
+	{
+		lightChanging = !lightChanging;
+		cout << "KEY L PRESSED\n";
+	}
+	/*
+	if (key == GLFW_KEY_UP && action == GLFW_PRESS && is_useful)
+	{
+		height += 0.1;
+		cout << height << endl;
+		cout << "KEY UP PRESSED\n";
+	}
+	if (key == GLFW_KEY_DOWN && action == GLFW_PRESS && is_useful)
+	{
+		height -= 0.1;
+		cout << height << endl;
+		cout << "KEY DOWN PRESSED\n";
+	}
+	*/
+}
+
+void framebuffer_size_callback(GLFWwindow* window, int width, int height)
+{
+	glViewport(0, 0, width, height);
+	windowWidth = width;
+	windowHeight = height;
+}
+
+unsigned int createShader(const char* filename, const char* type)
+{
+	unsigned int shader;
+	if (strcmp(type, "vert") == 0)
+		shader = glCreateShader(GL_VERTEX_SHADER);
+	else if (strcmp(type, "frag") == 0)
+		shader = glCreateShader(GL_FRAGMENT_SHADER);
+	else if (strcmp(type, "geom") == 0)
+		shader = glCreateShader(GL_GEOMETRY_SHADER);
+	else
+	{
+		cout << "Unknown Shader Type.\n";
+		return 0;
+	}
+
+	FILE* fp = fopen(filename, "rb");
+	fseek(fp, 0, SEEK_END);
+	long fsize = ftell(fp);
+	fseek(fp, 0, SEEK_SET);  //same as rewind(fp);
+
+	char* source = (char*)malloc(sizeof(char) * (fsize + 1));
+	fread(source, fsize, 1, fp);
+	fclose(fp);
+
+	source[fsize] = 0;
+
+	glShaderSource(shader, 1, &source, NULL);
+	glCompileShader(shader);
+
+	int success;
+	char infoLog[512];
+	glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
+	if (!success)
+	{
+		glGetShaderInfoLog(shader, 512, NULL, infoLog);
+		cout << "ERROR::SHADER::" << type << "::COMPLIATION_FAILED\n" << infoLog << endl;
+		return -1;
+	}
+
+	return shader;
+}
+
+unsigned int createProgram(unsigned int vertexShader, unsigned int geometryShader, unsigned int fragmentShader)
+{
+	unsigned int program = glCreateProgram();
+
+	//Attach our shaders to our program
+	glAttachShader(program, vertexShader);
+	glAttachShader(program, geometryShader);
+	glAttachShader(program, fragmentShader);
+
+	//Link our program
+	glLinkProgram(program);
+
+	//Note the different functions here: glGetProgram* instead of glGetShader*.
+	int success = 0;
+	glGetProgramiv(program, GL_LINK_STATUS, &success);
+
+	if (!success)
+	{
+		int maxLength = 0;
+		glGetProgramiv(program, GL_INFO_LOG_LENGTH, &maxLength);
+
+		//The maxLength includes the NULL character
+		char* infoLog = (char*)malloc(sizeof(char) * (maxLength));
+		glGetProgramInfoLog(program, maxLength, &maxLength, infoLog);
+
+		//We don't need the program anymore.
+		glDeleteProgram(program);
+		//Don't leak shaders either.
+		glDeleteShader(vertexShader);
+		glDeleteShader(fragmentShader);
+
+		cout << "LINKING ERROR: ";
+		puts(infoLog);
+		free(infoLog);
+
+		return -1;
+	}
+
+	//Always detach shaders after a successful link.
+	glDetachShader(program, vertexShader);
+	glDetachShader(program, fragmentShader);
+
+	return program;
+}
+
+unsigned int ModelVAO(Object* model)
+{
+	unsigned int VAO, VBO[3];
+	glGenVertexArrays(1, &VAO);
+	glBindVertexArray(VAO);
+	glGenBuffers(3, VBO);
+
+	glBindBuffer(GL_ARRAY_BUFFER, VBO[0]);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(GL_FLOAT) * (model->positions.size()), &(model->positions[0]), GL_STATIC_DRAW);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, sizeof(GL_FLOAT) * 3, 0);
+	glEnableVertexAttribArray(0);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	glBindBuffer(GL_ARRAY_BUFFER, VBO[1]);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(GL_FLOAT) * (model->normals.size()), &(model->normals[0]), GL_STATIC_DRAW);
+	glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, sizeof(GL_FLOAT) * 3, 0);
+	glEnableVertexAttribArray(1);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	glBindBuffer(GL_ARRAY_BUFFER, VBO[2]);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(GL_FLOAT) * (model->texcoords.size()), &(model->texcoords[0]), GL_STATIC_DRAW);
+	glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, sizeof(GL_FLOAT) * 2, 0);
+	glEnableVertexAttribArray(2);
+	glBindBuffer(GL_ARRAY_BUFFER, 0);
+
+	glBindVertexArray(0);
+
+	return VAO;
+}
+
+void LoadTexture(unsigned int& texture, const char* tFileName) {
+	glEnable(GL_TEXTURE_2D);
+	glGenTextures(1, &texture);
+	glBindTexture(GL_TEXTURE_2D, texture);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+	int width, height, nrChannels;
+	stbi_set_flip_vertically_on_load(true);
+	unsigned char* data = stbi_load(tFileName, &width, &height, &nrChannels, 0);
+
+	if (data)
+	{
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+	}
+	else
+	{
+		std::cout << "Failed to load texture" << std::endl;
+	}
+	glBindTexture(GL_TEXTURE_2D, 0);
+	stbi_image_free(data);
+}
+
+glm::mat4 getPerspective()
+{
+	return glm::perspective(
+		glm::radians(45.0f),
+		(float)windowWidth / (float)windowHeight, 
+		1.0f, 100.0f);
+}
+
+glm::mat4 getView()
+{
+	return glm::lookAt(glm::vec3(0, 12, 12), glm::vec3(0, -1, 0), glm::vec3(0, 1, 0));
+}
